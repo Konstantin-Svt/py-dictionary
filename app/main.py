@@ -187,6 +187,6 @@ class Dictionary:
         while self.__index < len(self.__hash_table):
             result = self.__hash_table[self.__index]
             self.__index += 1
-            if result is not None:
+            if result is not None and result != "__TOMBSTONE":
                 return result[0]
         raise StopIteration
