@@ -27,7 +27,10 @@ class Dictionary:
         dict_list: list, list_index: int, content: tuple
     ) -> bool:
         while True:
-            if dict_list[list_index] is None:
+            if (
+                dict_list[list_index] is None
+                or dict_list[list_index] == "__TOMBSTONE"
+            ):
                 dict_list[list_index] = content
                 return False
             if dict_list[list_index][0] == content[0]:
@@ -44,20 +47,21 @@ class Dictionary:
         key: Union[
             int, float, bytes, frozenset, str, bool, complex, tuple, type(None)
         ],
+        del_flag: bool = False,
     ) -> Any:
-        iteration_counter = 0
-        while True:
-            iteration_counter += 1
+        while dict_list[list_index] is not None:
             if (
-                dict_list[list_index] is not None
+                dict_list[list_index] != "__TOMBSTONE"
                 and dict_list[list_index][0] == key
             ):
-                return dict_list[list_index]
-            if iteration_counter == len(dict_list):
-                raise KeyError("Key not found in Dictionary")
+                result = dict_list[list_index]
+                if del_flag:
+                    dict_list[list_index] = "__TOMBSTONE"
+                return result
             list_index += 1
             if list_index == len(dict_list):
                 list_index = 0
+        raise KeyError(f"Key not found: {key}")
 
     def __setitem__(
         self,
@@ -68,10 +72,10 @@ class Dictionary:
     ) -> None:
         key_hash = Dictionary.hashing_key(key)
         self.__length += 1
-        if len(self.__hash_table) * 2 // 3 == self.__length:
+        if len(self.__hash_table) * 2 // 3 <= self.__length:
             new_hash_table = [None] * len(self.__hash_table) * 2
             for cell in self.__hash_table:
-                if cell is not None:
+                if cell is not None and cell != "__TOMBSTONE":
                     new_cell_key_index = cell[1] % len(new_hash_table)
                     Dictionary.table_setter_collision_checker(
                         new_hash_table, new_cell_key_index, cell
@@ -110,9 +114,10 @@ class Dictionary:
     ) -> None:
         key_hash = Dictionary.hashing_key(key)
         key_index = key_hash % len(self.__hash_table)
-        if Dictionary.value_finder_by_key(self.__hash_table, key_index, key):
+        if Dictionary.value_finder_by_key(
+            self.__hash_table, key_index, key, del_flag=True
+        ):
             self.__length -= 1
-            self.__hash_table[key_index] = None
 
     def get(
         self,
@@ -175,13 +180,13 @@ class Dictionary:
                 self.__setitem__(kwargs_key, kwargs_value)
 
     def __iter__(self) -> Dictionary:
-        self.__iterable_table = [cell[0] for cell in self.__hash_table if cell]
         self.__index = 0
         return self
 
     def __next__(self) -> Any:
-        if self.__index >= self.__length:
-            raise StopIteration
-        result = self.__iterable_table[self.__index]
-        self.__index += 1
-        return result
+        while self.__index < len(self.__hash_table):
+            result = self.__hash_table[self.__index]
+            self.__index += 1
+            if result is not None:
+                return result[0]
+        raise StopIteration
